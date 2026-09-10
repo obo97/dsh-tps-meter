@@ -271,3 +271,20 @@ test('readings：主会话排在 subagent 子会话之前', () => {
   assert.equal(list[0].sub, false)
   assert.equal(list[1].sub, true)
 })
+
+test('stepMs：本步结束后定格，不随空闲时间增长', () => {
+  const reg = createRegistry()
+  const session = { id: 's-steps', header: { cwd: 'D:\\x\\proj' } }
+  const t0 = 900_000
+  reg.onEvent(session, { type: 'step/start', data: { turn: 1, step: 1 }, time: t0 }, t0)
+  reg.onEvent(session, chunk('abcd'), t0 + 100)
+  reg.onEvent(
+    session,
+    { type: 'assistant/message', data: { turn: 1, step: 1, usage: { outputTokens: 4 } }, time: t0 + 600 },
+    t0 + 600,
+  )
+  const soon = reg.readings(t0 + 1000)[0]
+  const later = reg.readings(t0 + 600_000)[0]
+  assert.equal(soon.stepMs, 600, '本步耗时 = 结束时刻 - 开始时刻')
+  assert.equal(later.stepMs, 600, '空闲 10 分钟后仍是 600ms，不再膨胀')
+})
