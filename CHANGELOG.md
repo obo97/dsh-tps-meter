@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-10
+
 ### Fixed
 - **多会话交替工作时列表抖动**：会话行的位置不再随每次轮询的活跃度换位（宿主返回顺序抖动、`running` 在 1.5s 无输出窗口反复翻转、`lastEventMs` 互相领先都不再影响行序），改为按"首次出现"锚定行序，只在会话首次出现和整轮开始/结束时变化。
 - **"当前显示"的会话来回跳**：没手动点选时不再每次都取列表第一条，而是咬住上一次显示的会话；只有它消失（被关闭 / 下线）才回落到下一个可用会话。
@@ -36,5 +38,6 @@
 - 安装脚本 `install.ps1`（link 到 DSH web profile + 写入 `cordis.patch.yml`）。
 - 测试：tracker 单测 + 宿主冒烟共 20 项；`test/preview.mjs` 本地样式预览。
 
-[Unreleased]: https://github.com/looking321-rt/dsh-tps-meter/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/looking321-rt/dsh-tps-meter/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/looking321-rt/dsh-tps-meter/compare/v0.1.1...v0.1.2
 [0.1.0]: https://github.com/looking321-rt/dsh-tps-meter/releases/tag/v0.1.0
