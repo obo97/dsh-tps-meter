@@ -16,7 +16,7 @@
 - 端点写响应包 try/catch：客户端提前断开（刷新页面）不再向宿主抛异常。
 
 ### Changed
-- 测试 20 → 28 项（tracker 15 + host 8 + widget 5，其中 widget 是新增的客户端渲染测试：DOM 桩 + `vm` 跑 `lib/widget.js`，锁住行序稳定与当前会话不跳）。
+- 测试 20 → 29 项（tracker 15 + host 8 + widget 6，其中 widget 是新增的客户端渲染测试：DOM 桩 + `vm` 跑 `lib/widget.js`；含一条端到端用例 —— 用真实 tracker 造"两会话交替输出"的流量，先断言宿主返回顺序确实在抖，再断言浮窗行序与当前会话纹丝不动）。
 
 ## [0.1.0] - 2026-09-10
 

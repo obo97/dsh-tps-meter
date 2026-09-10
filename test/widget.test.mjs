@@ -11,6 +11,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
+import { createRegistry } from '../lib/tracker.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SOURCE = fs.readFileSync(path.join(ROOT, 'lib', 'widget.js'), 'utf8')
@@ -247,4 +248,40 @@ test('空读数不炸：列表给占位、数字归零', async () => {
   assert.equal(ui.rows().length, 0)
   assert.ok(ui.root.querySelector('.t-sessions').innerHTML.includes('暂无会话输出'))
   assert.equal(ui.root.querySelector('.t-num').textContent, '0.0')
+})
+
+test('端到端：宿主按活跃度抖动排序时，浮窗行序与当前会话都纹丝不动', async () => {
+  // ① 用真实 tracker 造「两个会话交替输出」的流量，取宿主真实返回的读数序列。
+  //    宿主排序键是 running + lastEventMs，交替输出时两者都在变 → 顺序会抖，
+  //    这正是用户看到的"位置上下浮动 + 绿字交替"的来源。
+  const reg = createRegistry()
+  const a = { id: 'session-aaaa1111', header: { cwd: 'D:\\work\\proj-a' } }
+  const b = { id: 'session-bbbb2222', header: { cwd: 'D:\\work\\proj-b' } }
+  const delta = () => ({
+    type: 'assistant/chunk',
+    data: { chunk: { type: 'text-delta', index: 0, text: 'x'.repeat(400) } },
+  })
+  reg.onEvent(a, { type: 'turn/start', data: { turn: 1 } }, 5_000_000)
+  reg.onEvent(b, { type: 'turn/start', data: { turn: 1 } }, 5_000_000)
+  let now = 5_000_000
+  const frames = []
+  for (let i = 0; i < 12; i += 1) {
+    reg.onEvent(i % 2 === 0 ? a : b, delta(), now)
+    now += 400
+    frames.push(reg.readings(now))
+  }
+  const hostOrders = new Set(frames.map((f) => f.map((r) => r.id).join(',')))
+  assert.ok(hostOrders.size > 1, `宿主顺序应随活跃度变化（否则这个场景没造出抖动）：${[...hostOrders].join(' / ')}`)
+
+  // ② 把这份抖动的数据原样喂给浮窗：行序与"当前显示"的会话都不许变。
+  const ui = startWidget()
+  const rows = []
+  const shown = []
+  for (const frame of frames) {
+    await ui.push(frame)
+    rows.push(ui.rows().join(','))
+    shown.push(ui.selected())
+  }
+  assert.equal(new Set(rows).size, 1, `行序应恒定，实际出现 ${new Set(rows).size} 种：${[...new Set(rows)].join(' / ')}`)
+  assert.equal(new Set(shown).size, 1, `当前显示的会话应恒定，实际出现 ${new Set(shown).size} 种：${[...new Set(shown)].join(' / ')}`)
 })
