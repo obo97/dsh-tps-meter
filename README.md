@@ -1,5 +1,9 @@
 # dsh-tps-meter —— 会话实时 tok/s 悬浮窗
 
+[![CI](https://github.com/looking321-rt/dsh-tps-meter/actions/workflows/ci.yml/badge.svg)](https://github.com/looking321-rt/dsh-tps-meter/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/dsh-tps-meter.svg)](https://www.npmjs.com/package/dsh-tps-meter)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）Web 界面里的可拖动悬浮窗：**实时显示会话输出吞吐（tok/s）**，下面是可点击切换的会话列表，再下面依次是本步 token、会话累计 token、首 token 延迟（TTFT）。
 
 ![截图](docs/screenshot.png)
@@ -96,7 +100,16 @@ token 估算启发式：ASCII 4 字符 ≈ 1 token，非 ASCII 字符（中文�
 
 ## 安装
 
-### 从 GitHub 源码安装（推荐）
+### 从 npm 安装（最省事）
+
+```powershell
+dsh plugin --profile web add dsh-tps-meter
+```
+
+> 需要先装 DSH 官方 CLI（桌面版不带）：`npm i -g @deepseek-ai/dsh`，装完重开终端。
+> 没有 CLI 的话用下面的源码方式，效果一样。
+
+### 从 GitHub 源码安装
 
 ```powershell
 git clone https://github.com/looking321-rt/dsh-tps-meter.git
@@ -113,7 +126,7 @@ pnpm add "dsh-tps-meter@link:$HOME/dsh-tps-meter"     # 1) 链接本仓库
 printf '    - id: dsh-tps-meter\n      name: dsh-tps-meter\n' >> cordis.patch.yml   # 2) 追加到 - insert: 块内
 ```
 
-### 用 DSH CLI 安装
+### 用 DSH CLI 安装本地源码
 
 ```powershell
 dsh plugin --profile web add link:<本仓库的绝对路径>
