@@ -123,6 +123,41 @@ test('tapIndex：只注入 DSH 页面，且不重复注入', () => {
   assert.equal(injectInto(otherHtml), otherHtml)
 })
 
+test('state.json：非本机 Host 回 403（DNS rebinding 防护），本机 Host 放行', () => {
+  const { ctx, routes } = fakeCtx()
+  apply(ctx)
+  const state = routes.get('/dsh-tps/state.json')
+
+  const denied = fakeRes()
+  state({ method: 'GET', headers: { host: 'attacker.test' } }, denied)
+  assert.equal(denied.status, 403)
+  assert.ok(!denied.body.includes('"sessions"'), '403 不能带出会话数据')
+
+  for (const host of ['127.0.0.1:3080', 'localhost:3080', '[::1]:3080']) {
+    const res = fakeRes()
+    state({ method: 'GET', headers: { host } }, res)
+    assert.equal(res.status, 200, `host=${host} 应放行`)
+  }
+})
+
+test('只读端点：非 GET/HEAD 回 405，widget.js 同样守 Host', () => {
+  const { ctx, routes } = fakeCtx()
+  apply(ctx)
+
+  const posted = fakeRes()
+  routes.get('/dsh-tps/state.json')({ method: 'POST', headers: { host: '127.0.0.1:3080' } }, posted)
+  assert.equal(posted.status, 405)
+  assert.equal(posted.headers.Allow, 'GET, HEAD')
+
+  const widget = fakeRes()
+  routes.get('/dsh-tps/widget.js')({ method: 'GET', headers: { host: 'evil.example' } }, widget)
+  assert.equal(widget.status, 403)
+
+  const head = fakeRes()
+  routes.get('/dsh-tps/state.json')({ method: 'HEAD', headers: { host: 'localhost:3080' } }, head)
+  assert.equal(head.status, 200)
+})
+
 test('effect 清理：dispose 后路由与注入点都被撤掉', () => {
   const { ctx, routes, taps, cleanups } = fakeCtx()
   apply(ctx)
