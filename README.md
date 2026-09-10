@@ -24,6 +24,17 @@
 
 > 兼容性说明：宿主若缺少较新的字段（例如会话标题 `session/title`、`active` 整轮状态），浮窗会自动降级显示（回退到目录名、回退用"最近有无输出"判断工作状态），不会报错。
 
+### 能在哪些环境运行
+
+| 环境 | 支持 | 说明 |
+|---|---|---|
+| **DSH 桌面版** | ✅ | 默认就带 Web 运行时与 `webServer` 服务 |
+| **DSH CLI 版 + 浏览器界面**（`npm i -g @deepseek-ai/dsh` 后跑 `dsh web`）| ✅ | 与桌面版共用同一个 profile（`~/.dsh/profiles/web`）和同一套 Web 运行时 |
+| 纯终端 / headless（不起 Web 服务）| ❌ | 浮窗靠往页面注入脚本显示，没有页面就没有落点 |
+| 其他 AI 客户端（Claude Code / Cursor / Codex CLI 等）| ❌ | 不是 DSH 插件体系，没有 `session/event` 与 `webServer` 这两套扩展点 |
+
+只依赖两项宿主能力：**会话事件 firehose**（`session/event`）与 **Web 服务扩展点**（`ctx.webServer.register` / `tapIndex`）。
+
 ### 权限与隐私
 
 | 项 | 说明 |
@@ -127,6 +138,8 @@ cd dsh-tps-meter
 # Windows：一键脚本（link 到 DSH web profile + 写入 cordis.patch.yml，备份原文件）
 & .\install.ps1                 # 卸载：& .\install.ps1 -Remove
 ```
+
+> 脚本内部用 **pnpm** 链接依赖；没装的话先 `npm i -g pnpm`（插件本身零依赖，这里只是借用包管理器做 link）。
 
 macOS / Linux 手动两步：
 
