@@ -1,0 +1,147 @@
+# dsh-tps-meter —— 会话实时 tok/s 悬浮窗
+
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）Web 界面里的可拖动悬浮窗：**实时显示会话输出吞吐（tok/s）**，下面是可点击切换的会话列表，再下面依次是本步 token、会话累计 token、首 token 延迟（TTFT）。
+
+![截图](docs/screenshot.png)
+
+*实拍：三行会话（当前项绿字 + 转圈表示正在工作、其余白字 + `–` 表示已完成），131.6 tok/s 实时速度与 40 拍波形。*
+
+## 环境与要求
+
+| 项 | 要求 |
+|---|---|
+| **DSH** | 需要支持会话事件 firehose（`session/event`）与页面注入（`webServer.register` / `tapIndex`）的 DeepSeek Harness 桌面版。开发与实测环境：DSH 桌面版（`@deepseek-ai/*` 0.1.1-rc.2 一代），Web 界面 |
+| **操作系统** | 宿主逻辑跨平台（Windows / macOS / Linux 均可）；`install.ps1` 一键安装脚本仅 Windows，其它平台用两条命令手动装（见下文） |
+| **运行时依赖** | **零第三方依赖**：宿主侧只用 Node 内置模块（`fs` / `path` / `url`），浮窗是纯 ES5 脚本（无框架、无构建） |
+| **Node** | 宿主插件运行在 DSH 进程内，不单独跑 Node；代码只用 ES2020 语法，DSH 自带运行时即可 |
+| **浏览器** | 任意现代浏览器（Chrome / Edge 88+、Firefox 78+、Safari 14+）：用到 `fetch`、Canvas 2D、Pointer Events、`localStorage` |
+| **权限** | 安装时需要写 `$DSH_HOME/profiles/web`（`package.json` 与 `cordis.patch.yml`）；宿主插件运行期只**读**会话事件，不写会话日志、不发模型请求 |
+| **网络** | 不需要外网；浮窗轮询的是本机 `127.0.0.1` 上的 DSH Web 服务 |
+
+> 兼容性说明：宿主若缺少较新的字段（例如会话标题 `session/title`、`active` 整轮状态），浮窗会自动降级显示（回退到目录名、回退用"最近有无输出"判断工作状态），不会报错。
+
+## 开源 / 仓库
+
+- 许可证：**MIT**（见 [LICENSE](LICENSE)）
+- 变更记录：[CHANGELOG.md](CHANGELOG.md)
+- CI：GitHub Actions 在 Node 20 / 22 上跑 `node --test`（见 `.github/workflows/ci.yml`）
+
+```
+┌─────────────────────────┐
+│ ● TOK/S   [实时│均速] – │   ← 右上角按钮切换速度口径
+│ Refactor the login flow │   ← 当前会话（绿字）
+│ Optimize the data pipe… │   ← 其他会话（白字，点一下切过去）
+│ Add dark mode to the …  │   ← 名字过长自动截断
+│ …还有 2 个              │   ← 最多显示 3 行，其余折叠成一行
+│ 71.7 tok/s              │   ← 实时 = 窗口速度（绿）；均速 = 本步平均（蓝）
+│ ▁▂▃▅▆▇█▇▆▅▃▂▁▂▃▅▆▇      │   ← 波形只在实时口径显示
+│ 本步            414     │
+│ 累计           12.7k    │
+│ TTFT           0.78s    │
+│ 生成中 · 6.8s           │   ← 空闲时整行收起
+└─────────────────────────┘
+```
+
+## 功能
+
+| 项 | 说明 |
+|---|---|
+| 速度口径按钮 | 右上角 `实时 / 均速` 分段按钮**手动**切换，不再自动跳 |
+| 数字配色 | **只跟口径走**：实时 = 绿色、均速 = 蓝色（完全无会话数据时才中性灰）|
+| 会话列表 | 纵向堆叠会话名（取 `session/title`）；**当前会话绿色、其余白色，点名字即切换**；名字过长省略号截断；最多 3 行，超出显示 `…还有 N 个`（悬停可见全部）；选择记在 localStorage。宿主还没提供标题时回退为 `目录名 · #短id`（至少能区分同目录下的不同会话）|
+| 行内状态标 | 每行最右侧：**工作中 = 绿色转圈**（Windows 式缺口环旋转）、**已完成 = `–`**。工作中的判定看整轮生命周期（`turn/start` → `turn/end`），**思考、跑工具、等工具结果的空档也算工作中**，不会因为十几秒没输出就误标成完成 |
+| 双击关闭 | 双击**整轮已结束**的会话名 → 从浮窗移除它（记 localStorage）；**整轮进行中双击无效**；列表底部出现 `…N 个已关闭（点此恢复）`，点一下全部找回；被关会话重新开始干活会自动回到列表 |
+| 实时 tok/s | 窗口内估算 token ÷ 窗口真实跨度，每 400ms 刷新 |
+| 精确校正 | 每个步骤结束时用提供方上报的 `usage.outputTokens` 校正估算系数（EMA），显示值逐步贴近真值 |
+| 本步 / 累计 | 当前步骤输出 token、本次会话累计输出 token |
+| TTFT | 首 token 延迟（step/start → 首个非空 delta） |
+| 波形 | 只在**实时**口径显示：生成中推进、停下冻结、从未输出时画一条基线 |
+| 状态行 | 整轮进行中就露一行：生成中 → `生成中 · 6.8s`；无输出但有工具在跑 → `工具执行中…`；其余 → `思考中…`。整轮结束即收起 |
+| 多会话排序 | 按「活跃 → 主会话 → 最近」排列，列表顺序与之一致 |
+| 交互 | 头部拖动移动（位置记忆）、`–` 折叠成小胶囊、口径与折叠状态都记在 localStorage |
+| 常亮 | 不再因空闲改变透明度，始终保持同一暗度；轮询失败退避到 5s、页面隐藏降到 2s |
+| hover 详情 | 悬停浮窗显示完整 tooltip：会话名、两口径、轮/步、本步耗时、工作目录 |
+| 自更新提示 | 每 60s 比对一次脚本版本，发现换了就在头部亮出绿色 `⟳`，点击刷新页面（只提示不自动刷新，避免打断输入） |
+
+## 两个口径分别怎么算
+
+| | 实时 | 均速 |
+|---|---|---|
+| 含义 | 此刻的瞬时速度 | 本步从头到现在的平均速度 |
+| 公式 | Σ(窗口内 token) ÷ max(窗口真实跨度, 300ms)，窗口 2000ms | 本步 token ÷ (现在 − 首 token 时刻) |
+| token 来源 | 流式增量按字符估算，再乘校正系数 | 生成中同上；**步骤结束改用提供方精确 `usage.outputTokens`** |
+| 停下之后 | 归 0（确实没有实时输出了） | 定格为该步平均值，一直显示到最后一步 |
+| 用途 | 看此刻快不快、有没有卡顿 | 看这一步整体效率（开头慢/结尾慢都摊平） |
+
+「本步结束」的判定是收到 `assistant/message`（一步组装完成）；解码时长不足 200ms 的步骤不给均速（样本太小、噪声大）。
+校正系数 = 每步「精确 outputTokens ÷ 估算值」的 EMA（限幅 0.3~3），所以跑几步之后估算口径会越来越贴近真值。
+
+## 数据来源
+
+宿主侧订阅会话事件 firehose（`ctx.on('session/event')`），只读、不写会话日志、不碰模型请求：
+
+```
+assistant/chunk (text-delta / reasoning-delta / tool-call-delta / usage)
+assistant/message (提供方精确 usage)
+step/start · turn/start · turn/end · session/title（会话标题）
+        │
+        ▼
+  tracker.js  滑动窗口 + 估算校正
+        │
+        ▼
+  GET /dsh-tps/state.json   ← 浮窗每 400ms 轮询
+```
+
+token 估算启发式：ASCII 4 字符 ≈ 1 token，非 ASCII 字符（中文等）≈ 0.6 token；随后由提供方 usage 自动校正。
+
+## 安装
+
+### 从 GitHub 源码安装（推荐）
+
+```powershell
+git clone https://github.com/looking321-rt/dsh-tps-meter.git
+cd dsh-tps-meter
+# Windows：一键脚本（link 到 DSH web profile + 写入 cordis.patch.yml，备份原文件）
+& .\install.ps1                 # 卸载：& .\install.ps1 -Remove
+```
+
+macOS / Linux 手动两步：
+
+```bash
+cd ~/.dsh/profiles/web
+pnpm add "dsh-tps-meter@link:$HOME/dsh-tps-meter"     # 1) 链接本仓库
+printf '    - id: dsh-tps-meter\n      name: dsh-tps-meter\n' >> cordis.patch.yml   # 2) 追加到 - insert: 块内
+```
+
+### 用 DSH CLI 安装
+
+```powershell
+dsh plugin --profile web add link:<本仓库的绝对路径>
+# 例如：dsh plugin --profile web add link:D:\code\dsh-tps-meter
+```
+
+装完**刷新一次页面**即可看到浮窗：注入发生在 HTML 响应时，SPA 内部切页不会重新加载脚本。
+
+> ⚠️ DSH 桌面应用里 **F5 无效**：刷新用 **Ctrl+R**，或菜单 **文件 → 重新加载页面**（asar 主进程里只绑定了 `CmdOrCtrl+R`）。改过宿主侧逻辑（`lib/index.js`、`lib/tracker.js`）还需重启 DSH 应用才会重新加载插件。
+
+## 开发
+
+```powershell
+node --test test/               # 全部测试（tracker 14 项 + 宿主 6 项）
+node test/preview.mjs           # 本地预览服务 http://127.0.0.1:8899/（mock 读数）
+#   PREVIEW_MODE=done|thinking|tool|empty node test/preview.mjs   切换预览状态
+#   http://127.0.0.1:8899/?view=avg                预览「均速」口径
+#   http://127.0.0.1:8899/?view=live&autodbl=1     自动双击，验证「关闭会话显示」
+```
+
+改动 `lib/widget.js` 后刷新页面即生效（每次请求读磁盘），浮窗还会自己发现新版并亮出 `⟳`；改动宿主逻辑（`lib/index.js`、`lib/tracker.js`）需重启 DSH。
+
+> 记得改 `lib/widget.js` 里的 `BUILD` 常量 —— 浮窗靠它判断"脚本换新版了没有"。
+
+## 已知限制
+
+- **估算不是计费口径**：无 usage 的步骤按字符启发式计价；有 usage 时按步骤校正，但步骤内瞬时值仍是估算。
+- **实时口径在空闲时显示 0.0**：这是"此刻没有输出"的如实反映（数字仍是绿色，波形冻结保留）；想随时有数字就切到「均速」（它有值：生成中=本步均速，空闲=上一步均速）。
+- **多标签页各自轮询**：每个打开的 DSH 页面都会拉起自己的浮窗与轮询（互不干扰）。
+- **会话识别靠"最活跃"**：浮窗不读取界面当前选中的会话，只按活跃度排序（subagent 会话排在主会话之后）。
+- **MS 精度**：速度基于事件时间戳（宿主与浏览器同机），跨机部署时以宿主时钟为准。

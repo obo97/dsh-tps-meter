@@ -1,0 +1,14 @@
+# ============================================================================
+# dsh-tps-meter —— DSH bundle patch
+# ============================================================================
+# 把「会话 tok/s 悬浮窗」插件插入 Web profile 的配置树。
+#
+# 安装（任选其一）：
+#   dsh plugin --profile web add dsh-tps-meter
+#   本地开发：在 profile/package.json 加 "dsh-tps-meter": "link:<本目录绝对路径>"
+#             并在 dsh.profile.bundles 里加上 dsh-tps-meter
+# ============================================================================
+
+- insert:
+    - id: dsh-tps-meter
+      name: dsh-tps-meter
