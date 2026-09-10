@@ -1,6 +1,6 @@
 {
   "name": "dsh-tps-meter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DeepSeek Harness Web 悬浮窗：实时显示会话输出吞吐（tok/s）、本步/累计 token 与首 token 延迟，支持实时/均速双口径与多会话切换。",
   "keywords": [
     "dsh",
