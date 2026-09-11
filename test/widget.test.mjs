@@ -285,3 +285,43 @@ test('端到端：宿主按活跃度抖动排序时，浮窗行序与当前会�
   assert.equal(new Set(rows).size, 1, `行序应恒定，实际出现 ${new Set(rows).size} 种：${[...new Set(rows)].join(' / ')}`)
   assert.equal(new Set(shown).size, 1, `当前显示的会话应恒定，实际出现 ${new Set(shown).size} 种：${[...new Set(shown)].join(' / ')}`)
 })
+
+test('跨工作区多会话：会话频繁进出列表（新会话加入 / 短暂消失重现）时，已有行不许被顶动', async () => {
+  const ui = startWidget()
+  const r = (id, dir, working = true) => reading(id, { working, title: id + '@' + dir })
+
+  // 多工作区同时跑任务：s1/s2/s3 常驻，s2 中途短暂消失（整轮结束且零输出会被宿主过滤），
+  // s4 中途加入（新工作区的新会话 / subagent）。
+  const frames = [
+    [r('s1', 'ws-a'), r('s2', 'ws-a'), r('s3', 'ws-b')],
+    [r('s2', 'ws-a'), r('s1', 'ws-a'), r('s3', 'ws-b')], // 宿主顺序抖动
+    [r('s1', 'ws-a'), r('s3', 'ws-b')], // s2 暂时消失
+    [r('s3', 'ws-b'), r('s1', 'ws-a'), r('s2', 'ws-a')], // s2 回来
+    [r('s1', 'ws-a'), r('s2', 'ws-a'), r('s3', 'ws-b'), r('s4', 'ws-c')], // s4 新加入
+    [r('s4', 'ws-c'), r('s3', 'ws-b'), r('s2', 'ws-a'), r('s1', 'ws-a')],
+    [r('s1', 'ws-a'), r('s3', 'ws-b'), r('s4', 'ws-c'), r('s2', 'ws-a')],
+  ]
+
+  const seen = []
+  for (const frame of frames) {
+    await ui.push(frame)
+    seen.push(ui.rows())
+  }
+
+  // 浮窗只渲染前 3 行（MAX_ROWS），所以"被新会话挤出去"就是用户看到的跳。
+  const resident = seen.filter((rows) => !rows.includes('s1') || !rows.includes('s3'))
+  assert.equal(resident.length, 0, `常驻会话不该被挤出可见区，出问题的帧：${JSON.stringify(resident)}`)
+
+  // s1 与 s3 全程都在：它俩的相对次序任何一轮都不许变。
+  const pair = seen.map((rows) => rows.filter((id) => id === 's1' || id === 's3').join('>'))
+  assert.equal(new Set(pair).size, 1, `常驻会话的相对次序应恒定，实际 ${[...new Set(pair)].join(' / ')}`)
+
+  // s2 只是"消失了一帧"，回来必须回到原位（在 s1 之后、s3 之前），而不是被当成新会话插到最前。
+  const back = seen[3]
+  assert.equal(back.indexOf('s2') > back.indexOf('s1'), true, `s2 回归后应排在 s1 之后，实际 ${back.join(',')}`)
+  assert.equal(back.indexOf('s2') < back.indexOf('s3'), true, `s2 回归后应回到 s3 之前，实际 ${back.join(',')}`)
+
+  // s4 是新加入的：只能追加到队尾，不许把 s1/s2/s3 顶下去。
+  const joined = seen[4]
+  assert.equal(joined.join(','), 's1,s2,s3', `新会话应追加队尾（前 3 行仍是老会话），实际 ${joined.join(',')}`)
+})
