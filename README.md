@@ -135,19 +135,27 @@ dsh plugin --profile web add dsh-tps-meter
 ```powershell
 git clone https://github.com/looking321-rt/dsh-tps-meter.git
 cd dsh-tps-meter
-# Windows：一键脚本（link 到 DSH web profile + 写入 cordis.patch.yml，备份原文件）
 & .\install.ps1                 # 卸载：& .\install.ps1 -Remove
 ```
 
-> 脚本内部用 **pnpm** 链接依赖；没装的话先 `npm i -g pnpm`（插件本身零依赖，这里只是借用包管理器做 link）。
+脚本做两件事：`pnpm add "dsh-tps-meter@link:<本仓库>"`，以及把 `dsh-tps-meter` 写进
+`~/.dsh/profiles/web/package.json` 的 `dsh.profile.bundles`（改前自动备份 `*.bak-tps-*`）。
+
+> 内部用 **pnpm** 链接依赖；没装的话先 `npm i -g pnpm`（插件本身零依赖，这里只是借用包管理器做 link）。
 
 macOS / Linux 手动两步：
 
 ```bash
 cd ~/.dsh/profiles/web
 pnpm add "dsh-tps-meter@link:$HOME/dsh-tps-meter"     # 1) 链接本仓库
-printf '    - id: dsh-tps-meter\n      name: dsh-tps-meter\n' >> cordis.patch.yml   # 2) 追加到 - insert: 块内
+# 2) 在 package.json 的 dsh.profile.bundles 数组里加一项 "dsh-tps-meter"
 ```
+
+**登记只放一处**：`dsh.profile.bundles` —— 这是 DSH 自己管理 bundle 层的地方，它会在每次
+`dsh plugin ...` 之后按包的 `dsh.bundle` 声明核对这个列表。**别**再往 `cordis.patch.yml` 里手写
+同名的 `- insert:` 行：那会变成两份登记，删除时清掉一份、另一份悬空，DSH 下次启动就会
+`cannot resolve profile bundle "dsh-tps-meter"` → `plugin tree failed to load` → 进程在监听端口前退出
+（桌面端表现：「dsh 子进程在就绪前退出」，整个界面都连不上）。
 
 ### 用 DSH CLI 安装本地源码
 
@@ -156,9 +164,23 @@ dsh plugin --profile web add link:<本仓库的绝对路径>
 # 例如：dsh plugin --profile web add link:D:\code\dsh-tps-meter
 ```
 
-装完**刷新一次页面**即可看到浮窗：注入发生在 HTML 响应时，SPA 内部切页不会重新加载脚本。
+装完**重启一次 DSH**（bundle 层在启动时加载），再刷新页面即可看到浮窗：注入发生在 HTML 响应时，SPA 内部切页不会重新加载脚本。
 
-> ⚠️ DSH 桌面应用里 **F5 无效**：刷新用 **Ctrl+R**，或菜单 **文件 → 重新加载页面**（asar 主进程里只绑定了 `CmdOrCtrl+R`）。改过宿主侧逻辑（`lib/index.js`、`lib/tracker.js`）还需重启 DSH 应用才会重新加载插件。
+> ⚠️ DSH 桌面应用里 **F5 无效**：刷新用 **Ctrl+R**，或菜单 **文件 → 重新加载页面**（asar 主进程里只绑定了 `CmdOrCtrl+R`）。
+
+## 卸载
+
+```powershell
+cd <本仓库路径>
+& .\install.ps1 -Remove
+```
+
+卸载会清干净三处登记（`dsh.profile.bundles`、`cordis.patch.yml` 里的历史遗留行、`dependencies`），
+而且是**幂等**的：重复跑不报错，也不会碰别的插件的行。
+
+**DSH 已经起不来了怎么办**：若删除时漏清了某处登记（旧版脚本、或手动删过目录），DSH 会在加载插件树时
+直接退出。在仓库目录跑一次 `& .\install.ps1 -Remove` 就能救回来 —— 它**先清登记再动 pnpm**，最后打印
+`self-check: no dsh-tps-meter reference left in the profile`，看到这行就可以重新启动 DSH 了。
 
 ## 开发
 
