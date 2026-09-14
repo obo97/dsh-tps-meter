@@ -2,7 +2,7 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.1.3] - 2026-09-14
 
 ### Fixed
 - **删除插件后 DSH 起不来（严重）**：卸载不干净会留下悬空登记，DSH 加载插件树时解析不到包，就在监听端口前退出（桌面端表现「子进程在就绪前退出」，整个界面都连不上）。两处根因：① 旧 `install.ps1` 只删 `cordis.patch.yml` 的行，**从不碰 `dsh.profile.bundles`** —— 而本插件声明了 `dsh.bundle`，DSH 会在每次 `dsh plugin ...` 后自动把它写进那份列表，于是 `pnpm remove` 删了包、列表里却留着名字；② 删 patch 行时按「缩进 ≥4 空格」一路吃到底，会把**后面所有插件的 insert 行一起删掉**（旧逻辑重放实测：4 行插件只剩第 1 行）。
@@ -50,6 +50,7 @@
 - 安装脚本 `install.ps1`（link 到 DSH web profile + 写入 `cordis.patch.yml`）。
 - 测试：tracker 单测 + 宿主冒烟共 20 项；`test/preview.mjs` 本地样式预览。
 
-[Unreleased]: https://github.com/looking321-rt/dsh-tps-meter/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/looking321-rt/dsh-tps-meter/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/looking321-rt/dsh-tps-meter/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/looking321-rt/dsh-tps-meter/compare/v0.1.1...v0.1.2
 [0.1.0]: https://github.com/looking321-rt/dsh-tps-meter/releases/tag/v0.1.0
